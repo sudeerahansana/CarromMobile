@@ -1,0 +1,136 @@
+
+using Mirror;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class JoinLobbyMenu : MonoBehaviour
+{
+    [SerializeField] private NetworkManegerLobby networkManeger = null;
+    [SerializeField] private TelepathyTransport telepathy;   //instance of TelepathyScript
+
+    [Header("UI")]
+ //   [SerializeField] private GameObject backGroundPanel = null;
+  //  [SerializeField] private GameObject landingPagePanel=null;
+  //  [SerializeField] private GameObject mainPanel = null;
+    [SerializeField] private GameObject dialogePanel = null;
+    [SerializeField] private TMP_InputField ipAddressInputField = null;
+    [SerializeField] private Animator mainUiAnimator = null;
+  //  [SerializeField] private Button joinButton = null;
+   // private TouchScreenKeyboard keyBoad;
+
+    private void OnEnable()    //called automatically when gameObject activated [c# build in function]
+    {
+        NetworkManegerLobby.OnClientConnected += HandleClientConnected;    //when OnClientConnected event occure HandleClientConnected Method run
+       // NetworkManegerLobby.OnClientDisConnected += HandleClientDisConnected;
+    }
+    private void OnDisable()    //called automatically when gameObject deactivated [c# build in function]
+    {
+        NetworkManegerLobby.OnClientConnected -= HandleClientConnected;     //removeing that method from excuting when event raised 
+       // NetworkManegerLobby.OnClientDisConnected -= HandleClientDisConnected;
+    }
+    private void Start()
+    {
+        //ipAddressInputField.text = "192.168.1.101";
+    }
+   
+    private void Update()
+    {
+      /*  if (Input.GetKeyDown(KeyCode.Escape))        
+        {
+            if (gameObject.activeSelf)
+            {
+                mainPanel.SetActive(true);
+                gameObject.SetActive(false);
+            }
+        }*/
+        if (ipAddressInputField.isFocused)
+        {
+            this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 380f);
+            //  keyBoad = TouchScreenKeyboard.Open("", TouchScreenKeyboardType.NumbersAndPunctuation);
+            TouchScreenKeyboard.hideInput = true;
+
+        }
+        else if (this.gameObject.activeSelf && !ipAddressInputField.isFocused)
+        {
+            this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 250f);
+
+        }
+    
+
+    /* if (TouchScreenKeyboard.visible && this.gameObject.activeSelf)
+     {
+         this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 380f);
+         TouchScreenKeyboard.hideInput = true;
+     }
+     else if (this.gameObject.activeSelf && !TouchScreenKeyboard.visible)
+     {
+         this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 250f);
+
+     }*/
+    /* if (ipAddressInputField.isFocused && this.gameObject.activeSelf)
+     {
+         this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 450f);
+       //  keyBoad = TouchScreenKeyboard.Open("", TouchScreenKeyboardType.NumbersAndPunctuation);
+         TouchScreenKeyboard.hideInput = true;
+
+     }
+     else if (this.gameObject.activeSelf && !ipAddressInputField.isFocused)
+     {
+         this.gameObject.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 250f);
+
+     }*/
+}
+
+    public void JoinLobby()
+    {
+        mainUiAnimator.SetInteger("AnimeInt", 7);
+
+        Invoke("JoinAnimeEvent", 1f);
+    }
+    public void JoinAnimeEvent()
+    {
+        if (ipAddressInputField.text.Substring(0, 1) == "c")
+        {
+            string ipAddress = ipAddressInputField.text.Substring(1);
+            networkManeger.networkAddress = ipAddress;
+            networkManeger.StartClient();
+            //  backGroundPanel.SetActive(false);
+        }
+        else
+        {
+            string ipAddress = ipAddressInputField.text.Substring(0, 1) + ".tcp.ngrok.io";  //slipt ip addr from roomId(input)
+            string portNumber = ipAddressInputField.text.Substring(1);     //split portNumber
+                                                                           //string ipAddress = ipAddressInputField.text;
+            networkManeger.networkAddress = ipAddress;
+            telepathy.port = System.Convert.ToUInt16(portNumber);      //port number is ushort in Telepathy
+            networkManeger.StartClient();
+            // backGroundPanel.SetActive(false);
+        }
+    }
+   private void HandleClientConnected()      //listen when clientConnected through event
+    {
+      //  joinButton.interactable = true;
+      //  MainMenu.panelsLoaded[MainMenu.panelsLoaded.Count - 1].SetActive(false);
+        Debug.Log("Handle Client Connect");
+       // gameObject.SetActive(false);      //this gameObject which is the parent Of the script component
+        //landingPagePanel.SetActive(false);
+    }
+
+
+  /*  private void HandleClientDisConnected(string message)
+    {
+        joinButton.interactable = true;
+        Debug.Log("Handle Client Disconnect");
+        if (message != "")
+        {
+            Debug.Log("Message" + message);
+            dialogePanel.SetActive(true);
+        }
+        else
+        {
+            mainPanel.SetActive(true);
+        }
+    }*/
+
+}

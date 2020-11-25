@@ -1,0 +1,160 @@
+using Mirror;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Threading;
+using UnityEngine;
+
+public class DiskNetworkTransform : NetworkBehaviour
+{
+    [System.Serializable]
+    public class PositionPackage
+    {
+        public float x;
+        public float y;
+        public float z;
+        public float TimeStep;
+    }
+    private Vector3 currentPosition;
+    [SerializeField]
+    [Range(0.1f, 1)]
+    float networkSendRate = 0.5f;
+    private bool onceTrigger,onceHit;
+    public static event Action EventHitEnd;
+    private NetworkPacketManeger<PositionPackage> positionPacketManeger;
+
+    private void OnEnable()
+    {
+        positionPacketManeger = new NetworkPacketManeger<PositionPackage>();
+        positionPacketManeger.onRequirePackageTransmit += TransmitPositionPackagesToAll;
+        DiskMove.OnHit += SetHit;
+    }
+    private void OnDestroy()
+    {
+        positionPacketManeger.onRequirePackageTransmit -= TransmitPositionPackagesToAll;
+        DiskMove.OnHit -= SetHit;
+
+    }
+    void Start()
+    {
+        currentPosition = transform.position;
+        positionPacketManeger.sendSpeed = networkSendRate;
+        onceTrigger = true;
+        onceHit = false;
+    }
+
+    public virtual void FixedUpdate()
+    {
+        if (onceHit)
+        {
+            SendPosition();
+            if(onceTrigger && NetworkServer.active)
+            {
+                onceTrigger = false;
+                Invoke("DiskHitEnd", 5f);
+            }
+        }
+        UpdatePosition();
+       
+        positionPacketManeger.Tick();
+    }
+
+   
+    private void SendPosition()
+    {
+        if (hasAuthority)
+        {
+            if (transform.position != currentPosition)
+            {
+
+                float timeStep = Time.time;
+                currentPosition = transform.position;
+
+                positionPacketManeger.AddPackages(new PositionPackage
+                {
+                    x = transform.position.x,
+                    y = transform.position.y,
+                    z = transform.position.z,
+                    TimeStep = timeStep
+                });
+            
+            }
+        }
+    }
+
+    private void UpdatePosition()
+    {
+        if (hasAuthority)
+            return;
+        var data = positionPacketManeger.GetNextDataReceived();
+
+        if (data == null)
+        {
+            return;
+        }
+        //  transform.position = new Vector3(data.x, data.y, data.z);
+        Vector3 nextPosition = new Vector3(data.x, data.y, data.z);
+        transform.position = nextPosition;
+        if(onceTrigger && NetworkServer.active)
+        {
+            onceTrigger = false;
+            Invoke("DiskHitEnd", 5f);
+        }
+        /*if (onceTrigger)
+        {
+            onceTrigger = false;
+            StartCoroutine(InetialLerp(nextPosition));
+        }
+        else
+        {
+            transform.position = nextPosition;
+        }*/
+     
+    }
+   /* private IEnumerator InetialLerp(Vector3 position)
+    {
+        executed = false;
+        yield return new WaitForSeconds(1f);
+        transform.position = position;
+        executed = true;
+    }*/
+
+
+   /* private Vector3 CustomLerp(Vector3 currentPos,Vector3 nextPos,float dt)
+    {
+        Vector3 difference = nextPos - currentPos;
+        Vector3 pos = currentPos + difference *dt;
+        return pos;
+    }*/
+    private void DiskHitEnd()
+    {
+        Debug.Log("Disk Event hit end");
+        EventHitEnd?.Invoke();
+        GameObject parentHand = transform.parent.gameObject;
+        Destroy(parentHand);
+    }
+    private void SetHit()
+    {
+        onceHit = true;
+    }
+    private void TransmitPositionPackagesToAll(byte[] physics)
+    {
+        CmdTransmitPositionPackagesToAll(physics);
+    }
+
+    [Command]
+    private void CmdTransmitPositionPackagesToAll(byte[] position)
+    {
+        RpcReceivePositionOnClient(position);
+    }
+
+    [ClientRpc]
+    void RpcReceivePositionOnClient(byte[] data)
+    {
+        positionPacketManeger.ReceiveData(data);
+    }
+
+   
+
+  
+}

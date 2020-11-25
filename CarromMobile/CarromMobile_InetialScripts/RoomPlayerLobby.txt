@@ -1,0 +1,317 @@
+
+using UnityEngine;
+using Mirror;
+using UnityEngine.UI;
+using TMPro;
+using System;
+using UnityEngine.PlayerLoop;
+
+//thsi scripts sits on the olayer when theySpawn in and destroy when they leave
+public class Room2PlayerLobby : NetworkBehaviour
+{
+  
+   // [SerializeField] private GameObject thirdPanel = null;
+  //  [SerializeField] private GameObject fourthPanel = null;
+    [SerializeField] private Animator dialogeButtonAnime = null;
+    [SerializeField] private GameObject dialogPanel = null;
+   /* [SerializeField] private Button playerOneButton = null;
+    [SerializeField] private Button playerTwoButton = null;
+    [SerializeField] private Button playerThreeButton = null;*/
+  //  [SerializeField] private Sprite greenSprite;
+  //  public static event Action<int> onUpdatMyNum;
+
+
+    [Header("UI")]
+    [SerializeField] private GameObject lobbyUi = null;
+    [SerializeField] private TextMeshProUGUI[] playerNameTexts = new TextMeshProUGUI[2];
+    [SerializeField] private TextMeshProUGUI roomIdText = null;
+    [SerializeField] private GameObject[] ReadyImages = new GameObject[2];
+    [SerializeField] private GameObject[] NotReadyImages = new GameObject[2];
+    [SerializeField] private Button startGameButton = null;
+    [SerializeField] private GameObject roomIdTextObj = null;
+    [SerializeField] private RectTransform chatButton = null;
+    [SerializeField] private RectTransform panel = null;
+    public string name;
+
+    public static event Action<int,int,int> onEnableRoomPlayer;
+    //public static event Action onLeaveRoomToCloseChat;
+
+
+    [SyncVar(hook = nameof(HandDisplayNameChanged))]   
+    public string DisplayName = "Loading...";
+    [SyncVar(hook = nameof(HandleReadyStatusChanged))]   //we tell the server we want to set redy and change name,then the sever hndle the logic and let everyone know
+    public bool IsReady = false;
+
+    /*[SyncVar(hook = nameof(SetMaxConnections))]
+    public int connections=2;*/
+
+    private bool isLeader;
+
+    public bool IsLeader     //sets in NetworkMannegerLobby line 79,this whole thing run
+    {
+        set
+        {
+            isLeader = value;
+            startGameButton.gameObject.SetActive(value);         //when leader ready activate startgame button
+        }
+    }
+   /* private int noOfPlayers;
+
+    public int NoOfPlayers
+    {
+        set
+        {
+            noOfPlayers = value;
+            connections = noOfPlayers;
+
+        }
+    }*/
+
+    private NetworkManegerLobby room;
+
+    private NetworkManegerLobby Room
+    {
+        get
+        {
+            if(room != null) { return room; }
+            return room = NetworkManager.singleton as NetworkManegerLobby;
+        }
+    }
+    private void OnEnable()
+    {
+        NetworkManegerLobby.OnClientDisConnected += OnClientOnlyDisconnects;
+
+    }
+    private void OnDisable()
+    {
+        NetworkManegerLobby.OnClientDisConnected -= OnClientOnlyDisconnects;
+    }
+    public override void OnStartAuthority()          //called on the object that belongs to us when its starts
+    {
+        name = PlayerPrefs.GetString("Name");
+        CmdSetDisplayName(name);         //Cmd functions called on by client runs on Server
+        lobbyUi.SetActive(true);
+        roomIdTextObj.SetActive(true);
+        roomIdText.text = "ROOM ID:-"+PluginController.roomId;
+        SetOnEnableRoomPlayer();
+    }
+
+    private void SetOnEnableRoomPlayer()
+    {
+        float scaleFactor = (float)gameObject.GetComponentInChildren<Canvas>().scaleFactor;
+        int btnSize = (int)(chatButton.rect.width * scaleFactor);
+        int btnLeftMargine = (int)((Math.Abs(chatButton.anchoredPosition.x) - chatButton.rect.width / 2)  * scaleFactor);
+        int btnTopMargine = (int)((Math.Abs(chatButton.anchoredPosition.y) - chatButton.rect.height / 2)  * scaleFactor);
+       
+       
+        onEnableRoomPlayer?.Invoke(btnSize, btnLeftMargine, btnTopMargine);
+    }
+
+    public override void OnStartClient()
+    {
+        Room.Room2Players.Add(this);    //add this instance of this class[this player] to the list
+        UpdateDisplay();
+    }
+
+    public override void OnStopClient()    //called on server when any client including him self disonnected
+    {
+        base.OnStopClient();
+        Room.Room2Players.Remove(this);
+        UpdateDisplay();
+        Destroy(gameObject);
+    }
+
+    private void OnClientOnlyDisconnects()     //called on cliet only when  client disconnected
+    {
+        Room.Room2Players.Remove(this);
+        UpdateDisplay();
+        Destroy(gameObject);
+
+    }
+
+    public void HandleReadyStatusChanged(bool oldValue, bool newValue) => UpdateDisplay();     //when player is ready
+
+    public void HandDisplayNameChanged(string oldValue, string newValue) => UpdateDisplay();    //when display neme changer
+
+    //public void SetMaxConnections(int oldValue,int newValue)=>SetConnections();
+    private void UpdateDisplay()
+    {
+       
+        if (!hasAuthority) //if the player who updated is not us
+        {
+            
+            foreach (var player in Room.Room2Players)    //find us
+            {
+                if (player.hasAuthority)
+                {
+                    player.UpdateDisplay();
+                    break;
+                }
+            }
+            return;
+        }
+        //if we updated
+
+        for (int i = 0; i < playerNameTexts.Length; i++)   //clear everyOns display
+        {
+            playerNameTexts[i].text = "Waiting for player...";
+            ReadyImages[i].SetActive(false);
+            NotReadyImages[i].SetActive(false);
+        }
+
+
+        for (int i=0;i<Room.Room2Players.Count;i++)                //and the setting all back
+        {
+            playerNameTexts[i].text = Room.Room2Players[i].DisplayName;
+          /*  if (Room.RoomPlayers[i].DisplayName.Equals(PlayerPrefs.GetString("Name")))
+            {
+                onUpdatMyNum?.Invoke(i);
+            }*/
+            /*playerReadyTexts[i].text = Room.RoomPlayers[i].IsReady ?
+                "<color=green>Ready</color>" :
+                "<color=red>Not Ready</color>";*/
+            if(Room.Room2Players[i].IsReady)
+                ReadyImages[i].SetActive(true);
+            else
+                NotReadyImages[i].SetActive(true);
+
+        }
+    }
+    /* private void SetConnections()
+     {
+         if (thirdPanel.activeSelf && fourthPanel.activeSelf)
+             return;
+
+         if (connections == 4)
+         {
+             thirdPanel.SetActive(true);
+             fourthPanel.SetActive(true);
+            *//* if (isLeader)
+             {
+                playerOneButton.gameObject.SetActive(true);
+                playerTwoButton.gameObject.SetActive(true);
+                playerThreeButton.gameObject.SetActive(true);
+             }*//*
+         }
+     }*/
+
+    public void HandleReadyToStart(bool readyToStart)
+    {
+        if (!isLeader) { return; }
+
+        startGameButton.interactable = readyToStart;
+    }
+
+    [Command]
+    public void CmdSetDisplayName(string displayName)
+    {
+        DisplayName = displayName;
+       
+    }
+
+    [Command]
+    public void CmdReadyUp()
+    {
+        IsReady = !IsReady;
+
+        Room.NotifyPlayersOfReadyState();
+    }
+    [Command]
+    public void CmdStartGame()
+    {
+        if (Room.Room2Players[0].connectionToClient != connectionToClient) { return; }       //if the player is not the leader
+
+        Room.StartGame();
+    }
+
+    private void Quit()
+    {
+        // stop host if host mode
+        if(dialogPanel.activeSelf)
+            dialogPanel.SetActive(false);
+
+        if (NetworkServer.active && NetworkClient.isConnected)
+        {
+           // onLeaveRoomToCloseChat?.Invoke();
+            room.StopHost();
+        }
+        // stop client if client-only
+        else if (NetworkClient.isConnected)
+        {
+            //onLeaveRoomToCloseChat?.Invoke();
+            room.StopClient();
+          //  Destroy(gameObject);
+        }
+        // stop server if server-only
+        else if (NetworkServer.active)
+        {
+           // onLeaveRoomToCloseChat?.Invoke();
+            room.StopServer();
+        }
+       
+    }
+   
+    public void QuitButton()         //when leaving from lobby dialoge box yes button pressed
+    {
+        dialogeButtonAnime.SetInteger("DialogeButton", 1);
+        Invoke("Quit", 1f);
+    }
+
+    public void NoButton()
+    {
+        dialogeButtonAnime.SetInteger("DialogeButton", 2);
+        Invoke("DissapearDialog", 1f);
+    }
+
+    private void DissapearDialog()
+    {
+        dialogPanel.SetActive(false);
+    }
+
+    /* public void player1Setlect()
+     {
+         playerOneButton.GetComponent<Image>().sprite = greenSprite;
+         playerOneButton.GetComponentInChildren<Text>().text = "Y";
+     }*/
+    /// <summary>
+    /// select patner
+    /// suffel the list and update list
+    /// update display
+    /// update spawn position by calling a method in NetworkManagerLobby
+    /// </summary>
+    /*  public void player2Setlect()      //select partner
+      {
+          try
+          {
+              var roomPlayer = Room.RoomPlayers[1];
+              Room.RoomPlayers[1] = Room.RoomPlayers[2];
+              Room.RoomPlayers[2] = roomPlayer;
+          }
+          catch (ArgumentOutOfRangeException e)
+          {
+              Debug.Log(e.Message);
+          }
+          UpdateDisplay();
+          Room.UpdatePlayersList();
+          playerOneButton.GetComponent<Image>().sprite = greenSprite;
+          playerOneButton.GetComponentInChildren<Text>().text = "Y";
+      }
+      public void player3Setlect()
+      {
+          try
+          {
+              var roomPlayer = Room.RoomPlayers[1];
+              Room.RoomPlayers[1] = Room.RoomPlayers[3];
+              Room.RoomPlayers[3] = roomPlayer;
+          }
+          catch (ArgumentOutOfRangeException e)
+          {
+              Debug.Log(e.Message);
+          }
+
+          UpdateDisplay();
+          Room.UpdatePlayersList();
+          playerOneButton.GetComponent<Image>().sprite = greenSprite;
+          playerOneButton.GetComponentInChildren<Text>().text = "Y";
+      }*/
+}

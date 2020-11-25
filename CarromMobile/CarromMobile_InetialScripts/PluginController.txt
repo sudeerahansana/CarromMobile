@@ -1,0 +1,488 @@
+using Mono.Nat;
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+using System.Net;
+using System.Globalization;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
+using Mirror;
+using System.Collections.Generic;
+using System.Collections;
+using TMPro;
+using System.Threading;
+
+//[System.Serializable]
+public class PluginController : MonoBehaviour
+{
+     private string[] tokens = { };
+    [SerializeField] private GameObject noConnDialogePanel = null;
+    [SerializeField] private GameObject roomIdDialogPanel = null;
+    [SerializeField] private TextMeshProUGUI dialogTextField=null;
+    [SerializeField] private GameObject netwrokManager = null;
+    [SerializeField] private GameObject[] dialogeImages = null;
+    [SerializeField] private GameObject ipAdressJoinPanel = null;
+    [SerializeField] private GameObject mainUi=null;
+    [SerializeField] private GameObject signInWaitPanel = null;
+    private int buttonSize, leftMargine, topMargine;
+    private ScreenOrientation currentOrientation;
+    public RectTransform button;
+    private bool orientationChanged = false;
+    //public RectTransform textCarom;   //to get Heigth
+    private static int countForNetworkConnection;          //countFordignUp to automaticaly close webPanel just Once
+    private static string playerName, email, password,token;
+    private static int browserResult;
+    public static string roomId = null;
+
+    public static event Action<string> onMsgSend;
+   
+    const string pluginName = "com.example.ngrokprolibrary.NgrokPluging";//Android studio project NAME.CLASSNAME
+
+    static AndroidJavaClass _pluginClass;//static public getters-to access classs object
+    static AndroidJavaObject _pluginInstance;//static public getters-to access instance of the object
+
+ 
+    class BrowseCallback : AndroidJavaProxy
+    {
+        public BrowseCallback() : base(pluginName + "$BrowserCallback")   //class in plugin
+        {
+        }
+      /*  public BrowseCallback() : base(pluginName + "$BrowserCallback")   //class in plugin
+        {
+          
+        }*/
+        public void onBrowseComplete(int result,string pName,string pEmail,string pPassword,string pToken)
+        {
+            Debug.Log("BrowseComplete:-----------------------" + result);
+            if (result == 1)
+            {
+                Debug.Log("token found----------------");
+                /* PluginController.playerName = PluginInstance.GetStatic<string>("name");
+                 //  PlayerPrefs.SetString("Name", PluginController.playerName);
+                 PluginController.email = PluginInstance.GetStatic<string>("email");
+                 PluginController.password = PluginInstance.GetStatic<string>("password");
+                 PluginController.token = PluginInstance.GetStatic<string>("token");*/
+
+                PluginController.playerName = pName;
+                PluginController.email = pEmail;
+                PluginController.password = pPassword;
+                PluginController.token = pToken;
+                PluginController.browserResult = 1;
+               // PluginController.savingData();
+              
+            }
+            else if(result==2)
+            {
+                Debug.Log("token not found---------------------------------");
+                PluginController.browserResult = 2;
+                //  PluginController.countForSignUp = 0;
+
+            }
+
+        }
+    }
+
+    class ChatCallback : AndroidJavaProxy
+    {
+         public ChatCallback() : base(pluginName + "$ChatCallback")   //class in plugin
+        {
+           
+        }
+       
+        public void onChatCallback(string msgRecv)
+        {
+            onMsgSend?.Invoke(msgRecv);
+        }
+    }
+    public static AndroidJavaClass PluginClass//with this we con only modify PluginClass only by executing *(look down) but can aceess anyWhere
+    {                                                                                                      
+        get                                                                                               
+        {
+            Debug.Log("In Plugin class");
+            if (_pluginClass == null)                                                         
+            {                                                       
+                _pluginClass = new AndroidJavaClass(pluginName);//*(here)
+                AndroidJavaClass playerClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");//to pass the activity to gain context
+                AndroidJavaObject activity = playerClass.GetStatic<AndroidJavaObject>("currentActivity"); //currentactivity is method in unity
+                _pluginClass.SetStatic<AndroidJavaObject>("mainActivity", activity);
+            }
+            return _pluginClass;
+        }
+    }
+   // public static PluginController singleton { get; private set; }
+    public static AndroidJavaObject PluginInstance
+    {
+        get
+        {
+            if (_pluginInstance == null)
+            {
+                _pluginInstance = PluginClass.CallStatic<AndroidJavaObject>("getInstance");//static method(CallStatic) getinstance() in an.studio called
+            }
+            return _pluginInstance;
+        }
+    }
+
+    /* private void Awake()
+     {
+         InIt();
+
+     }
+     private void InIt()
+     {
+         if (singleton != null && singleton == this)
+         {
+             Destroy(gameObject);
+             return;
+             Debug.Log("SingeltonReturn");
+         }
+
+         // do this early
+
+         if (singleton != null)
+             {
+                // Destroy(gameObject);
+             Debug.Log("destroy singelton");
+             // Return false to not allow collision-destroyed second instance to continue.
+             return;
+             }
+             singleton = this;
+             if (Application.isPlaying) DontDestroyOnLoad(gameObject);
+
+
+
+         return;
+     }
+ */
+    private void OnEnable()
+    {
+        Room2PlayerLobby.onEnableRoomPlayer += SetUpChatUiForRoomPlayer;
+        Game2Player.onEnableGamePlayer += SetChatUiForGamePlayer;
+        Game2Player.onLeaveGameToCloseChat += CloseChatUi;
+        Room2PlayerLobby.onLeaveRoomToCloseChat += CloseChatUi;
+        CameraSetup.OnCamEnable += DisplayChatUiForGamePlayer;
+        NetworkManegerLobby.OnShuttingDownNgrok += ShutDownNgrok;
+        ChatManager.onMsgRecv += MsgRecv;
+        NetworkManager.OnSceneChange += CloseChatOnSceneChange;
+        
+    }
+    private void OnDisable()
+    {
+        Room2PlayerLobby.onEnableRoomPlayer -= SetUpChatUiForRoomPlayer;
+        Game2Player.onEnableGamePlayer -= SetChatUiForGamePlayer;
+        Game2Player.onLeaveGameToCloseChat -= CloseChatUi;
+        Room2PlayerLobby.onLeaveRoomToCloseChat -= CloseChatUi;
+        CameraSetup.OnCamEnable -= DisplayChatUiForGamePlayer;
+        NetworkManegerLobby.OnShuttingDownNgrok -= ShutDownNgrok;
+        ChatManager.onMsgRecv -= MsgRecv;
+        NetworkManager.OnSceneChange -= CloseChatOnSceneChange;
+
+    }
+    private void Start()
+    {
+        //countForSignUp = 0;
+        countForNetworkConnection = 0;
+        DontDestroyOnLoad(gameObject);
+        browserResult = 0;
+        currentOrientation = ScreenOrientation.LandscapeLeft;
+    }
+
+    private void Update()
+    {
+        if ((Application.internetReachability == NetworkReachability.NotReachable)  && (countForNetworkConnection == 0))             //checked for connection
+              noConnection();
+        if (orientationChanged)
+        {
+            if ((Input.deviceOrientation == DeviceOrientation.LandscapeLeft) && currentOrientation != ScreenOrientation.LandscapeLeft)
+            {
+                currentOrientation = ScreenOrientation.LandscapeLeft;
+                Debug.Log("Orientation changed"+currentOrientation);
+                OnScreenRotation(1);
+            }
+            if ((Input.deviceOrientation == DeviceOrientation.LandscapeRight) && currentOrientation != ScreenOrientation.LandscapeRight)
+            {
+                currentOrientation = ScreenOrientation.LandscapeRight;
+                Debug.Log("Orientation changed" + currentOrientation);
+                OnScreenRotation(2);
+            }
+        }
+       
+        
+        if (browserResult == 1){
+            browserResult = 0;
+            saveData();
+        }
+        else if (browserResult == 2)
+        {
+            browserResult = 0;
+            passToken();
+        }
+            
+       /* if (Input.GetKeyDown(KeyCode.Escape))        //can quit app till with connction error mesege on
+        {
+            if (webPanel.gameObject.activeSelf)
+                exitWihtoutSigin();
+
+        
+        }
+        else if (webPanel)
+        {
+           *//* if (webPanel.gameObject.activeSelf)          //automaticallly closing webpannel when signedup
+            {
+               // url = PluginInstance.GetStatic<string>("fUrl");
+                logInPluginButton = PluginInstance.GetStatic<bool>("buttonPressed");
+                
+               *//* if (url.Equals("https://dashboard.ngrok.com/get-started/setup") && countForSignUp == 0)
+                    Invoke("finishedSignUp",10f);*//*
+                if (logInPluginButton)
+                {
+                    OnLogingButtonPressed();
+                }
+                    
+
+            }*//*
+        }*/
+        /*  if (roomId !=null && !dialogeDisplayed)
+          {
+              Debug.Log("Room id is not null");
+              dialogeDisplayed = true;
+              textField.text = roomId;
+              roomIdDialogPanel.SetActive(true);
+          }*/
+    }
+  
+    public void DestroyOnReloadingScene()
+    {
+        Destroy(gameObject);
+    }
+
+    public void noConnection()
+    {
+        noConnDialogePanel.SetActive(true);
+    
+    }
+
+  /*  public void exitWihtoutSigin()
+    {
+        url = PluginInstance.GetStatic<string>("fUrl");         //getting current opend url
+        if (!url.Equals("https://dashboard.ngrok.com/get-started/setup"))    //can only exit app whithout sign up{no going back}
+        {
+            //then we are in singin page
+            Application.Quit();
+        }
+        else
+            finishedSignUp();
+    }*/
+
+  /*  public void finishedSignUp()
+    {
+      //  countForSignUp++;
+        saveData();
+        CloseWebViewTapped();
+       // mainPanel.SetActive(true);
+       PlayerPrefs.SetInt("setUp", 1);                 //check setUp
+
+    }*/
+    public void Host2Players()  //when host lobby button pressed for 2 players
+    {
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            roomIdDialogPanel.SetActive(true);
+            netwrokManager.GetComponentInChildren<NetworkManegerLobby>().maxConnections = 2;
+            Invoke("HostTillLoadingScreenLoads", 1f);
+           
+        }
+        else
+        {
+            Debug.LogWarning("AlertView not Supported on this platform");
+            // roomIdDialogPanel.SetActive(true);
+            roomId = "Room Id";
+            netwrokManager.GetComponentInChildren<NetworkManegerLobby>().StartHost();
+            ipAdressJoinPanel.SetActive(false);
+            netwrokManager.GetComponentInChildren<NetworkManegerLobby>().maxConnections = 2;
+            // onRoomIdGet?.Invoke("roomId");
+        }
+
+    }
+   
+    public void Host4Players()  //when host lobby button pressed for 2 players
+    {
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            roomIdDialogPanel.SetActive(true);
+            netwrokManager.GetComponentInChildren<NetworkManegerLobby>().maxConnections = 4;
+            Invoke("HostTillLoadingScreenLoads", 1f);
+        }
+        else
+            Debug.LogWarning("AlertView not Supported on this platform");
+
+    }
+
+    private void HostTillLoadingScreenLoads()
+    {
+        try
+        {
+            PluginInstance.Call("getRoomId");
+            roomId = PluginInstance.GetStatic<string>("roomId");
+            roomId = roomId.Substring(0, 1) + roomId.Substring(15);
+            dialogeImages[0].SetActive(false);
+            dialogeImages[1].SetActive(true);
+            dialogTextField.text = "Share this Room Id with Your Friends\n" + roomId;
+            netwrokManager.GetComponentInChildren<NetworkManegerLobby>().StartHost();
+            // ipAdressJoinPanel.SetActive(false);
+        }
+        catch (AndroidJavaException e)
+        {
+            Debug.Log(e);
+            dialogeImages[0].SetActive(false);
+            dialogeImages[2].SetActive(true);
+            mainUi.GetComponent<Animator>().SetInteger("AnimeInt", 0);
+        }
+
+    }
+
+    public void OpenWebViewTapped()                  //when signin button pressed
+    {
+      //  Canvas parentCanvas = textCarom.GetComponentInParent<Canvas>();  //reference to the canvas object that text "crrom lobby" belongs to
+       // int stripHeight = (int)(textCarom.rect.height * parentCanvas.scaleFactor + 0.5f);  //calculate the hight that web view should be pushed down
+      //  setUpPanel.gameObject.SetActive(false);
+       // webPanel.gameObject.SetActive(true);
+        mainUi.GetComponent<Animator>().SetInteger("AnimeInt", 9);
+        signInWaitPanel.SetActive(true);
+        OpenWebView("https://dashboard.ngrok.com/signup", 0);
+    }
+
+    public void OpenWebView(string URL,int pixelShift)  
+    {
+       // setUpPanel.SetActive(false);
+      //  btnImage.color = Color.white;
+     
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("showWebView", new object[] { URL, pixelShift, new BrowseCallback() });
+    }
+
+    private void SetUpChatUiForRoomPlayer(int btnSize,int btnLeft, int btnTop)
+    {
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("showChatView", new object[] {  btnSize, btnLeft,  btnTop,
+                             new ChatCallback()});
+
+    }
+    private void CloseChatOnSceneChange()
+    {
+        Debug.Log("Close on scene change");
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("closeOnSceneChange");
+    }
+    private void SetChatUiForGamePlayer(int btnSize,int btnLeft, int btnTop)
+    {
+        Debug.Log("setChatUiFor gamePlayer");
+        // orientationChanged = true;
+        buttonSize = btnSize;
+        leftMargine = btnLeft;
+        topMargine = btnTop;
+       
+    }
+    private void DisplayChatUiForGamePlayer()
+    {
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("orientationChanged", new object[] {  buttonSize,  leftMargine,  topMargine,
+                             new ChatCallback()});
+    }
+    public void MsgRecv(string msgRecv)
+    {
+         PluginInstance.Call("msgRecv",new object[] { msgRecv });
+    }
+
+    private void CloseChatUi()
+    {
+        Debug.Log("in close chat Ui");
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("closeChatView");
+    }
+    private void ShutDownNgrok()
+    {
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("closeServer");
+    }
+
+    /// <summary>
+    /// 1-landscape Left
+    /// 2-Landscape Right
+    /// </summary>
+    /// <param name="result"></param>
+    private void OnScreenRotation(int orientation)
+    {
+        if (Application.platform == RuntimePlatform.Android)
+            PluginInstance.Call("onScreenRotation", new object[] {orientation});
+    }
+
+    /* public void CloseWebView(System.Action<int> closeComplete)   //called from closewithoutSignUp() & finishedSignup
+     {
+         webPanel.gameObject.SetActive(false);
+         if (Application.platform == RuntimePlatform.Android)
+             PluginInstance.Call("closeWebView", new object[] { new BrowseCallback(closeComplete) });
+         else
+             closeComplete(0);
+         signInWaitPanel.SetActive(false);
+         mainUiAnimator.SetBool("MainEnter", true);
+
+     }
+
+
+     public void CloseWebViewTapped()
+     {
+         CloseWebView((int result) =>
+         {
+             Debug.Log("inside uinty close web view");
+         });
+     }*/
+
+    private void saveData()         //called in finishedSignUp()
+    {
+        PlayerPrefs.SetInt("setUp", 1);
+
+        PlayerPrefs.SetString("Name",playerName);
+
+        BinaryFormatter formatter = new BinaryFormatter();
+        string path = Application.persistentDataPath + "/data.bin";    //storage/emulated/0/Android/data/com.sudeera.unity/files.data.bin
+        FileStream stream = new FileStream(path, FileMode.Create);
+        formatter.Serialize(stream, "name:" + playerName + " email:" + email + " password:" + password + " Token:" + token);
+        stream.Close();
+
+        signInWaitPanel.SetActive(false);
+        mainUi.GetComponent<Animator>().SetBool("MainEnter", true);
+
+    }
+    private void passToken()
+    {
+        PlayerPrefs.SetInt("setUp", 1);
+
+        System.Random rd = new System.Random();
+        int randomNumber = rd.Next(1, 5);
+        PluginInstance.Call("configNgrokWithGivenToken", new object[] {tokens[randomNumber]});
+
+        PlayerPrefs.SetString("Name", playerName);
+
+        BinaryFormatter formatter = new BinaryFormatter();
+        string path = Application.persistentDataPath + "/data.bin";    //storage/emulated/0/Android/data/com.sudeera.unity/files.data.bin
+        FileStream stream = new FileStream(path, FileMode.Create);
+        formatter.Serialize(stream, "name:" + playerName + " email:" + email + " password:" + password + " Token:" + tokens[randomNumber]);
+        stream.Close();
+
+        signInWaitPanel.SetActive(false);
+        mainUi.GetComponent<Animator>().SetBool("MainEnter", true);
+
+    }
+    /*public void getData()
+    {
+        string path = Application.persistentDataPath + "/data.bin";
+        if (File.Exists(path))
+        {
+            BinaryFormatter formater = new BinaryFormatter();
+            FileStream stream = new FileStream(path, FileMode.Open);
+
+            String Name = formater.Deserialize(stream) as String;
+            PlayerPrefs.SetString("Name", Name);
+        }
+    }*/
+}

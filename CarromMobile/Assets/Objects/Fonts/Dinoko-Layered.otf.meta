@@ -1,0 +1,23 @@
+fileFormatVersion: 2
+guid: dd7d824afa9ec7c45a00d2fa0f7cc5e2
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontName: Dinoko
+  fontNames:
+  - Dinoko
+  fallbackFontReferences:
+  - {fileID: 12800000, guid: ec472ff8f62e4924882b03db143312e2, type: 3}
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

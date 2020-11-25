@@ -1,0 +1,416 @@
+
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
+using System.Linq;
+using UnityEngine.XR;
+using UnityEditor;
+using System;
+using UnityEngine.SceneManagement;
+using Mirror.Examples.Basic;
+using System.Collections;
+
+
+
+//
+/// <summary>
+/// spawns with server authority in networkManagerlobby
+/// this handles the game logic
+/// *****GameManeger So far could only subscribed to [Sync Event] event that are raised by objects that spawns by GameManeger and that subscribed methods runs under [server]
+/// *****And similarly could only raised [Sync Event] to be subscribed by objects spawned by it self
+/// 1)spawn in disk this respective client authority
+/// 2)spawn points for disk were created by similar kind of method in PlayerSpaenSystem
+/// 3)list of instance of pieces created after initializing them to track them
+/// 4)authority of pieces changed respective to client connection who owns current chance
+/// 
+/// </summary>
+public class Game2PManeger : NetworkBehaviour
+{
+    
+    private List<NetworkConnection> playerConn = new List<NetworkConnection>();   //[***]receive list pf connections from NetworkManegerLoby because of NetworkManegerLobby is in server this list is only be filled in GameManager copy on server [Look for ***]
+    private List<GameObject> piecesInstances = new List<GameObject>();
+    private static List<Transform> diskSpawnPoints = new List<Transform>();
+
+    [Header("Prefabs")]
+    [SerializeField] private GameObject diskPrefab =null;
+    [SerializeField] private GameObject[] pieces=null;
+   
+    
+    private  NetworkIdentity currentNetId;
+    private int index;
+    private int connCount;
+
+    //Delegate was not needed when events get subscribed by Another server Object(another script on same player where event being triggerd
+    public static event Action<String> OnDiskSpawnGamePlayer;              //trigger in SPAWN DISK and subscribed in NetworkGamePlayer
+    public static event Action<NetworkIdentity,int> OnDiskSpawn;    //trigger in spawn disk and subscribed in playerspawnSystem to spawn hand with relevant connection
+    public static event Action EventAuthorityChange;                //trigger in pieces authority change and subscribed in pieces NetworkTransform
+    public static event Action<int> GameEnds;
+    public static event Action OnGamePlayerLeft;
+    private bool redaPot = false;
+    private bool redInHole = false;
+    private bool doNotChange = true;
+    private int whiteCount = 0;
+    private int blackCount = 0;
+    private int winner = 2;
+    private int piecesReciveCount;
+   // public static event Action<string> OnGamePlayerJoined;
+
+    #region Inetial Setup, Subscribing for actions and theire methods
+    public void OnEnable()
+    {                                                                               //find previous part above
+        NetworkManegerLobby.PassRoomPlayers += GetList;                             //[***]this event only gets triggerd is GameManager copy in server 
+       // NetworkManegerLobby.OnPlayerJoinedServer += PlayerJoined;
+        NetworkManegerLobby.OnPlayerLeftinServer += PlayerLeft;
+      //  DiskMove.EventHitEnd += SpawnDisk;
+        Pieces.EventFall+= PieceFall;
+        Pieces.FinishTurn += TurnEnds;
+        PlayerSpawSystem.OnPlayerSpawn += ParentDisk;
+        PiecesNetworkTransform.RespawnDisplacedPieces += ReplacePiece;
+    }
+    private void OnDisable()
+    {
+        NetworkManegerLobby.PassRoomPlayers -= GetList;
+       // NetworkManegerLobby.OnPlayerJoinedServer += PlayerJoined;
+        NetworkManegerLobby.OnPlayerLeftinServer -= PlayerLeft;
+       // DiskMove.EventHitEnd -= SpawnDisk;
+        Pieces.EventFall -= PieceFall;
+        Pieces.FinishTurn -= TurnEnds;
+        PlayerSpawSystem.OnPlayerSpawn -= ParentDisk;
+        PiecesNetworkTransform.RespawnDisplacedPieces -= ReplacePiece;
+
+    }
+    public static void AddSpawnPoint(Transform transform)
+    {
+        diskSpawnPoints.Add(transform);
+        diskSpawnPoints = diskSpawnPoints.OrderBy(x => x.GetSiblingIndex()).ToList();
+    }
+    public static void RemoveSpawnPoint(Transform transform) => diskSpawnPoints.Remove(transform);
+
+    public void GetList(List<NetworkConnection> playersConn)
+    {
+        for(int i = 0; i < playersConn.Count; i++)
+        {
+            playerConn.Add(playersConn[i]);
+        }
+    }
+    
+    private void Start()
+    {
+        winner = 2;
+        connCount = 0;
+        if (isServer)
+        {
+            SpawnPieces();
+            Invoke("SpawnDisk", 5f);   // in the begining to let time to players to get destroy
+        }
+    }
+    #endregion
+
+    [Server]
+    private void SpawnDisk()         //Do not work with out server tag bec: playerConn list is empty in Other copies of GameManeger execept in Server[look for reason***]
+    {
+        AdjustOption();
+        doNotChange = false;
+        if (winner == 0)
+        {
+            RpcGameEnds(0) ;
+            return;
+        }
+        else if (winner == 1)
+        {
+            RpcGameEnds(1);
+            return;
+        }
+        index = connCount % playerConn.Count;
+        currentNetId = playerConn[index].identity;
+        OnDiskSpawnGamePlayer?.Invoke(currentNetId.connectionToClient.ToString().Substring(11, 1));
+        OnDiskSpawn?.Invoke(currentNetId, index);
+        
+       
+     
+    }
+   
+    [Server]
+    private void ParentDisk(GameObject playerInstance)
+    {
+       
+        GameObject diskInstance = Instantiate(diskPrefab, diskSpawnPoints[index].position, diskSpawnPoints[index].rotation);
+        NetworkServer.Spawn(diskInstance, playerConn[index]);
+        RpcParentDisk(playerInstance, diskInstance);
+        PiecesAuthorityChange();
+       
+    }
+
+    [ClientRpc]
+    private void RpcParentDisk(GameObject playerInstance,GameObject diskInstance)
+    {
+        diskInstance.transform.parent = playerInstance.transform;
+    }
+    [Server]
+    private void SpawnPieces()
+    {
+        for (int i = 0; i < pieces.Length; i++)
+        {
+            GameObject piecesInstance = Instantiate(pieces[i]);
+            piecesInstances.Add(piecesInstance);
+            NetworkServer.Spawn(piecesInstance, playerConn[connCount % playerConn.Count]);
+        }
+
+    }
+
+    [Server]
+    private void PiecesAuthorityChange()
+    {
+        EventAuthorityChange?.Invoke();
+        for (int i = 0; i < piecesInstances.Count; i++)
+        {
+            piecesInstances[i].GetComponent<NetworkIdentity>().RemoveClientAuthority();
+         
+            piecesInstances[i].GetComponent<NetworkIdentity>().AssignClientAuthority(playerConn[index]);
+
+        }
+        piecesReciveCount = 0;
+        // connCount++;
+
+    }
+
+
+
+    [Server]
+    private void PieceFall(GameObject passedGameObject)
+    {
+        Debug.Log("Index" + index);
+        string color = passedGameObject.GetComponent<NetworkIdentity>().ToString().Substring(0,1);
+        int pieceNumber= int.Parse(passedGameObject.GetComponent<NetworkIdentity>().ToString().Substring(1, 2));
+        piecesInstances.Remove(passedGameObject);
+        if (color == "R")
+        {
+            doNotChange = true;
+            redInHole = true;
+        }
+        if (index == 0 && color == "W")
+        {
+            doNotChange = true;
+        }
+        if (index == 1 && color == "B")
+        {
+            doNotChange = true;
+        }
+        if (color == "W")
+        {
+            if (redInHole)
+            {
+                redaPot = true;
+                redInHole = false;
+            }
+            whiteCount++;
+            if(whiteCount==9 && !redaPot)
+            {
+                RespawnPieces(10);
+                RespawnPieces(11);
+                whiteCount = whiteCount - 2;
+            }
+            else if(whiteCount == 9 && redaPot)
+            {
+                winner = 0;
+            }
+        }
+        if (color == "B")
+        {
+            if (redInHole)
+            {
+                redaPot = true;
+                redInHole = false;
+            }
+            blackCount++;
+            if (blackCount == 9 && !redaPot)
+            {
+                RespawnPieces(1);
+                RespawnPieces(2);
+                blackCount = blackCount - 2;
+            }
+            else if (blackCount == 9 && redaPot)
+            {
+                winner = 1;
+            }
+        }
+           
+       
+        /*if (option == 2)
+        {
+            if(connCount-1 % playerConn.Count == 0)
+            {
+                if (color == "W")
+                {
+                    option = 0;
+                    redaPot = true;
+                }
+                else
+                {
+                    option = 10;
+                }
+            }
+            else if (connCount-1 % playerConn.Count == 1)
+            {
+                if (color == "B")
+                {
+                    option = 1;
+                    redaPot = true;
+                }
+                else
+                {
+                    option = 10;
+                }
+            }
+        }
+        if (color == "B")
+        {
+            option = 1;
+            blackCount++;
+        }
+        else if (color == "W")
+        {
+            option = 0;
+            whiteCount++;
+        }
+        else if (color == "R")
+            option = 2;
+
+        Debug.Log("Option in Piece Fall" + option);
+*/
+    }
+
+    [Server]
+    private void AdjustOption()
+    {
+        Debug.Log("Do Not Change"+doNotChange);
+        if (!doNotChange)
+            connCount++;
+        if (!doNotChange && redInHole)
+        {
+            RespawnPieces(0);
+            redInHole = false;
+        }
+        /*bool red, white, black;
+        red = white = black = false;
+        foreach (var piece in piecesInstances)
+        {
+            string color = piece.GetComponent<NetworkIdentity>().ToString().Substring(0, 1);
+            if(red && white)
+            {
+                option = 4;
+                return;
+            }
+            if(red && black)
+            {
+                option = 4;
+                return;
+            }
+            if (color == "R" && !red)
+                black = true;
+            else if (color == "W" && !white)
+                white = true;
+            else if (color == "B" && !black)
+                black=true;
+        }*/
+        //Debug.Log("Option" + option);
+        /*if (redaPot && whiteCount == 9)
+        {
+            option = 4;
+            return;
+        }
+        else if (redaPot && blackCount == 9)
+        {
+            option = 5;
+            return;
+        }
+        else if (!redaPot && whiteCount == 9)
+        {
+            if (connCount - 1 % playerConn.Count == 0)
+                connCount = 1;
+            else
+                connCount = 0;
+            RespawnPieces(10);
+
+        }
+        else if(!redaPot && blackCount == 9)
+        {
+            if (connCount - 1 % playerConn.Count == 1)
+                connCount = 0;
+            else
+                connCount = 1;
+            RespawnPieces(1);
+        }
+        else if (option == 2)
+        {
+            connCount = connCount - 1;
+            option = 2;
+        }
+        else if (option == 0)
+        {
+            connCount = 0;
+            option = 3;
+        }
+        else if (option == 1)
+        {
+            connCount = 1;
+            option = 3;
+        }
+        if (option == 10)
+            RespawnPieces(pieceNumber);
+        Debug.Log("Connection Count in adjust" + connCount);*/
+    }
+    private void TurnEnds()
+    {
+        piecesReciveCount++;
+        Debug.Log("Pieces Recive count" + piecesReciveCount);
+        Debug.Log("Pieces Instance count" + piecesInstances.Count);
+        if (piecesReciveCount >= piecesInstances.Count)
+        {
+            SpawnDisk();
+            piecesReciveCount = 0;
+        }
+    }
+
+    [Server]
+    private void ReplacePiece(GameObject passedObject)
+    {
+        int pieceNumber = int.Parse(passedObject.GetComponent<NetworkIdentity>().ToString().Substring(1, 2));
+        piecesInstances.Remove(passedObject);
+        RespawnPieces(pieceNumber);
+    }
+
+
+    [Server]
+    private void RespawnPieces(int pieceNumber)
+    {
+        GameObject piecesInstance = Instantiate(pieces[pieceNumber]);
+        piecesInstances.Add(piecesInstance);
+        NetworkServer.Spawn(piecesInstance, playerConn[connCount % playerConn.Count]);
+    }
+
+ 
+    [Server]
+    private void PlayerLeft()
+    {
+       // ChangeAuthorityOnClientLeft();
+        RpcPlayerLeft();
+    }
+    [ClientRpc]
+    private void RpcPlayerLeft()
+    {
+        Debug.Log("In Player Left ");
+        Time.timeScale = 0f;
+        OnGamePlayerLeft?.Invoke();
+    }
+    [ClientRpc]
+    private void RpcGameEnds(int winner)
+    {
+        GameEnds?.Invoke(winner);
+        Time.timeScale = 0f;
+    }
+}
+
+
+
+

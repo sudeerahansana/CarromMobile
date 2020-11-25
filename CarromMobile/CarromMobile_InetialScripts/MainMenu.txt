@@ -1,0 +1,374 @@
+using Mono.Nat;
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+using System.Net;
+using System.Globalization;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
+using Mirror;
+using System.Collections.Generic;
+using Mirror.Examples.Basic;
+using System.Collections;
+
+//[System.Serializable]
+public class MainMenu : MonoBehaviour
+{
+   // [SerializeField] private NetworkManegerLobby networkManeger = null;     //alertViewCallbakc on button tapped else
+   // [SerializeField] private NetworkManager networkManeger = null;
+   // private static NetworkManegerLobby networkManeger;
+   // [SerializeField] private GameObject landingPagePanel=null;
+    [SerializeField] private GameObject playerCountPanel=null;
+    [SerializeField] private GameObject mainPanel=null;
+    [SerializeField] private GameObject ipGameObject=null;
+    [SerializeField] private GameObject backGroundImage=null;
+    [SerializeField] private GameObject logo=null;
+    [SerializeField] private PluginController pluginController=null;
+    [SerializeField] private GameObject settingsBtn = null;
+ //   [SerializeField] private GameObject noConnDialogePanel = null;
+
+   // public static List<GameObject> panelsLoaded=new List<GameObject>();
+
+    [Header("UI")]
+  //  [SerializeField]
+  //  private Image btnImage;   //To change color
+    [SerializeField]private Button hostButton;
+    [SerializeField] private Animator mainUiAnimator;
+    public RectTransform webPanel;
+    public RectTransform textCarom;   //to get Heigth
+   
+    private String url;   // to assign url from android
+   /* private static int countForSignUp,countForNetworkConnection;          //countFordignUp to automaticaly close webPanel just Once
+    private static string playerName, email, password,token,roomId;
+    
+    const string pluginName = "com.example.ngrokprolibrary.NgrokPluging";//Android studio project NAME.CLASSNAME
+
+    static AndroidJavaClass _pluginClass;//static public getters-to access classs object
+    static AndroidJavaObject _pluginInstance;//static public getters-to access instance of the object
+
+    class AlertViewCallback : AndroidJavaProxy //interacting with java interface,when passing listeners to java and receiving callbacks directly in c#
+    {
+        private System.Action<int> alertHandler;
+
+        public AlertViewCallback(System.Action<int>alertHandlerIn) : base (pluginName + "$AlertViewCallback")//calling the constructor of the AndroidJavaProxy class
+        {
+            alertHandler = alertHandlerIn;
+
+        }
+        public void onButtonTapped(int index)
+        {
+            if (index == 1)              //for networkConnection Disaloge Box
+            {
+                panelsLoaded[panelsLoaded.Count - 1].SetActive(true);
+                countForNetworkConnection = 0;
+            }
+            else                                           //for ngrok roomId dialoge box
+            {
+                MainMenu.roomId=PluginInstance.GetStatic<string>("roomId");
+                Debug.Log("roomId:" + roomId);
+              //  MainMenu.networkManeger.StartHost();
+                panelsLoaded[panelsLoaded.Count - 1].SetActive(false);
+               
+            }
+            
+           
+        }
+    }
+
+    class BrowseCallback : AndroidJavaProxy
+    {
+        private System.Action<int> browseHandler;
+        public BrowseCallback(System.Action<int>browseHandlerIn) : base (pluginName + "$BrowserCallback")   //class in plugin
+        {
+            browseHandler = browseHandlerIn;
+        }
+        public void onBrowseComplete(int result)
+        {
+            Debug.Log("BrowseComplete:" + result);
+            if (result == 1)
+            {
+                Debug.Log("in sign up/login");
+                MainMenu.countForSignUp = 0;
+            }
+            else
+            {
+                MainMenu.playerName = PluginInstance.GetStatic<string>("name");
+                PlayerPrefs.SetString("Name", MainMenu.playerName);
+                MainMenu.email = PluginInstance.GetStatic<string>("email");
+                MainMenu.password = PluginInstance.GetStatic<string>("password");
+                MainMenu.token = PluginInstance.GetStatic<string>("token");
+                
+            }
+
+        }
+    }
+
+    public static AndroidJavaClass PluginClass//with this we con only modify PluginClass only by executing *(look down) but can aceess anyWhere
+    {                                                                                                      
+        get                                                                                               
+        {
+            Debug.Log("In Plugin class");
+            if (_pluginClass == null)                                                         
+            {                                                       
+                _pluginClass = new AndroidJavaClass(pluginName);//*(here)
+                AndroidJavaClass playerClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");//to pass the activity to gain context
+                AndroidJavaObject activity = playerClass.GetStatic<AndroidJavaObject>("currentActivity"); //currentactivity is method in unity
+                _pluginClass.SetStatic<AndroidJavaObject>("mainActivity", activity);
+            }
+            return _pluginClass;
+        }
+    }
+    public static AndroidJavaObject PluginInstance
+    {
+        get
+        {
+            if (_pluginInstance == null)
+            {
+                _pluginInstance = PluginClass.CallStatic<AndroidJavaObject>("getInstance");//static method(CallStatic) getinstance() in an.studio called
+            }
+            return _pluginInstance;
+        }
+    }
+
+*/
+
+
+    private void Start()
+    {
+        Screen.orientation = ScreenOrientation.Portrait;//setting orientation when start
+        PlayerPrefs.SetInt("setUp", 1);
+        if (PlayerPrefs.GetInt("setUp") == 1)   //if game was setup previously open hostLobby pannel
+        {
+            mainUiAnimator.SetBool("MainEnter", true);
+            settingsBtn.SetActive(true);
+        }
+        else
+        {
+            mainUiAnimator.SetBool("MainEnter", false);
+        }
+
+        //  Screen.orientation = ScreenOrientation.Portrait;//setting orientation when start
+        // networkManeger = networkManegerAssign;   //because cannot assign values to static fields in Editor
+        /*  PlayerPrefs.SetInt("setUp",1);
+          if (PlayerPrefs.GetInt("setUp") == 1)   //if game was setup previously open hostLobby pannel
+          {
+              landingPagePanel.SetActive(true);
+              panelsLoaded.Add(landingPagePanel);
+          }
+          else
+          {
+              mainPanel.SetActive(true);
+              panelsLoaded.Add(mainPanel);
+          }
+
+          countForSignUp = 0;
+          countForNetworkConnection = 0;
+        */
+    }
+
+    private void Update()
+    {
+     /*   if ((Application.internetReachability == NetworkReachability.NotReachable)  && (countForNetworkConnection == 0))             //checked for connection
+              noConnection();
+       */     
+        if (Input.GetKeyDown(KeyCode.Escape))        //can quit app till with connction error mesege on
+        {
+          
+            if (mainPanel.activeSelf)               //quit from landing page pannel
+                Application.Quit();
+            else if (playerCountPanel.activeSelf)
+            {
+                // playerCountPanel.SetActive(false);
+                // mainPanel.SetActive(true);
+                mainUiAnimator.SetInteger("AnimeInt", 1);
+               
+            }
+            else if (ipGameObject.activeSelf)
+            {
+                mainUiAnimator.SetInteger("AnimeInt", 3);
+                /*ipGameObject.SetActive(false);
+                mainPanel.SetActive(true);*/
+            }
+            /* if (webPanel.gameObject.activeSelf)
+                 exitWihtoutSigin();
+ */
+
+
+        }
+      /*  else if (webPanel.gameObject.activeSelf)          //automaticallly closing webpannel when signedup
+        {
+            url = PluginInstance.GetStatic<string>("fUrl");
+            if (url.Equals("https://dashboard.ngrok.com/get-started/setup") && countForSignUp == 0)
+                finishedSignUp();
+        }*/
+    }
+
+    /* public void noConnection()
+     {
+         noConnDialogePanel.SetActive(true);
+        *//* showAlertDialog(new string[] { "n", "Connection Error", "Check weather Mobile Data is On", "Cancel" }, (int obj) =>//this is a labmda function
+         {
+             Debug.Log("Local Handler called: " + obj);
+         });
+         countForNetworkConnection++;*//*
+
+     }*/
+
+    /*  public void exitWihtoutSigin()
+      {
+          url = PluginInstance.GetStatic<string>("fUrl");         //getting current opend url
+          //CloseWebViewTapped();
+          if (!url.Equals("https://dashboard.ngrok.com/get-started/setup"))    //can only exit app whithout sign up{no going back}
+          {
+              //then we are in singin page
+              panelsLoaded.Clear();
+              Application.Quit();
+          }
+      }*/
+
+    /* public void finishedSignUp()
+     {
+         countForSignUp++;
+         saveData();
+         CloseWebViewTapped();
+         landingPagePanel.SetActive(true);
+         panelsLoaded.Add(landingPagePanel);
+         PlayerPrefs.SetInt("setUp", 1);                 //check setUp
+
+     }*/
+  
+    public void StartPanelIdle()
+    {
+        mainUiAnimator.SetInteger("AnimeInt", 8);
+    }
+    public void HostLobby()                 //when Host Loby button pressed
+    {
+          mainUiAnimator.SetInteger("AnimeInt", 2);
+     }
+
+    public void twoPButtonAnimePlay()
+    {
+        mainUiAnimator.SetInteger("AnimeInt", 5);
+    }
+    public void fourPButtonAnimePlay()
+    {
+        mainUiAnimator.SetInteger("AnimeInt", 6);
+    }
+    public void Pressed2p()  //when host lobby button pressed for 2 players
+    {
+      //  networkManeger.StartHost();
+       // backGroundImage.SetActive(false);
+        logo.SetActive(false);
+        //playerCountPanel.SetActive(false);
+        pluginController.Host2Players();
+      //  hostButton.interactable = false;
+     //   networkManeger.maxConnections = 2;
+       /* showAlertDialog(new string[] { "y", "Share this Room Id with your friends", "OK" }, (int obj) =>//this is a labmda function
+        {
+            Debug.Log("Local Handler called: " + obj);
+        });
+*/
+    }
+    public void Pressed4p()  //when host lobby button pressed
+    {
+        //networkManeger.StartHost();
+       // backGroundImage.SetActive(false);
+        logo.SetActive(false);
+        // playerCountPanel.SetActive(false);
+        pluginController.Host4Players();
+        // hostButton.interactable = false;
+        // networkManeger.maxConnections = 4;
+        /* showAlertDialog(new string[] { "y", "Share this Room Id with your friends", "OK" }, (int obj) =>//this is a labmda function
+         {
+             Debug.Log("Local Handler called: " + obj);
+         });*/
+
+    }
+
+    public void JoinLobby()
+    {
+       mainUiAnimator.SetInteger("AnimeInt", 4);
+    }
+
+   
+
+    /* private void HandleClientDisConnected(string message)
+    {
+        joinButton.interactable = true;
+        Debug.Log("Handle Client Disconnect Connect");
+        if (!isServer && message!="")
+        {
+            Debug.Log("Message" + message);
+            dialogePanel.SetActive(true);
+        }
+       *//* else
+        {
+            mainPanel.SetActive(true);
+        }*//*
+    }*/
+    /* void showAlertDialog(string[] strings, System.Action<int> handler = null)  //called from noConnection() & Pressed()
+     {
+         if (Application.platform == RuntimePlatform.Android)  
+             PluginInstance.Call("showAlertView", new object[] { strings, new AlertViewCallback(handler) });//array of objects
+         else
+             Debug.LogWarning("AlertView not Supported on this platform");
+     }*/
+
+    /*  public void OpenWebViewTapped()                  //when signin button pressed
+      {
+          Canvas parentCanvas = textCarom.GetComponentInParent<Canvas>();  //reference to the canvas object that text "crrom lobby" belongs to
+          int stripHeight = (int)(textCarom.rect.height * parentCanvas.scaleFactor + 0.5f);  //calculate the hight that web view should be pushed down
+          mainPanel.gameObject.SetActive(false);
+          webPanel.gameObject.SetActive(true);
+          OpenWebView("https://dashboard.ngrok.com/login", stripHeight);
+      }*/
+
+    /*  public void OpenWebView(string URL,int pixelShift)  
+      {
+          mainPanel.SetActive(false);
+          btnImage.color = Color.white;
+
+          if (Application.platform == RuntimePlatform.Android)
+              PluginInstance.Call("showWebView", new object[] { URL, pixelShift });
+      }*/
+
+    /*  public void CloseWebView(System.Action<int> closeComplete)   //called from closewithoutSignUp() & finishedSignup
+      {
+          webPanel.gameObject.SetActive(false);
+          if (Application.platform == RuntimePlatform.Android)
+              PluginInstance.Call("closeWebView", new object[] { new BrowseCallback(closeComplete) });
+          else
+              closeComplete(0);
+      }
+  */
+
+    /*  public void CloseWebViewTapped()
+      {
+          CloseWebView((int result) =>
+          {
+              Debug.Log("inside uinty close web view");
+          });
+      }*/
+    /* public void saveData()         //called in finishedSignUp()
+     {
+         BinaryFormatter formatter = new BinaryFormatter();
+         string path = Application.persistentDataPath + "/data.bin";    //storage/emulated/0/Android/data/com.sudeera.unity/files.data.bin
+         FileStream stream = new FileStream(path, FileMode.Create);
+         formatter.Serialize(stream, "name:" + name + " email:" + email + " password:" + password + " Token:" + token);
+         stream.Close();
+         PlayerPrefs.SetString("Name", name);
+         //getData();
+     }*/
+    /*public void getData()
+    {
+        string path = Application.persistentDataPath + "/data.bin";
+        if (File.Exists(path))
+        {
+            BinaryFormatter formater = new BinaryFormatter();
+            FileStream stream = new FileStream(path, FileMode.Open);
+
+            String Name = formater.Deserialize(stream) as String;
+            PlayerPrefs.SetString("Name", Name);
+        }
+    }*/
+}

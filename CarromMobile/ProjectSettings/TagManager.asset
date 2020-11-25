@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - BFwalls
+  - LRwalls
+  - FPSCam
+  - Disk
+  - GameManeger
+  - Pieces
+  - Boad
+  - Walls
+  - NetworkManeger
+  - MainUi
+  - CountPanel
+  - LoadingPanel
+  - Handler
+  - PluginController
+  - Holes
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - Ground
+  - LocalPlayerLayer
+  - RemortPlayerLayer
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
